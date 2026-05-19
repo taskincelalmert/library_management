@@ -10,12 +10,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -125,7 +127,20 @@ class BookRepositoryIT extends AbstractIntegrationTest {
         void shouldFindByGenre() {
             // TODO: Save books of different genres
             //       Query by Genre.SCIENCE and verify only matching books are returned
-            fail("Not implemented yet");
+
+            // Arrange
+            createBook("978-0-14-045511-3", "The Republic", "Plato", 2, Genre.PHILOSOPHY);
+            createBook("978-0-14-044928-0", "Apology", "Plato", 1, Genre.PHILOSOPHY);
+            createBook("978-0-19-282890-3", "The Last Day of a Condemned Man", "Victor Hugo", 3, Genre.FICTION);
+            createBook("978-1-86197-278-1", "The 48 Laws of Power", "Robert Greene", 4, Genre.NON_FICTION);
+
+            // Act
+            List<Book> results = bookRepository.findByGenre(Genre.PHILOSOPHY);
+
+            // Assert
+            assertThat(results).hasSize(2);
+            assertThat(results).extracting(Book::getTitle)
+                    .containsExactlyInAnyOrder("The Republic", "Apology");
         }
 
         @Test
@@ -133,7 +148,20 @@ class BookRepositoryIT extends AbstractIntegrationTest {
         void shouldFindByAuthor() {
             // TODO: Save books by different authors
             //       Search by partial author name and verify results
-            fail("Not implemented yet");
+
+            // Arrange
+            createBook("978-0-14-045511-3", "The Republic", "Plato", 2, Genre.PHILOSOPHY);
+            createBook("978-0-14-044928-0", "Apology", "Plato", 1, Genre.PHILOSOPHY);
+            createBook("978-0-19-282890-3", "The Last Day of a Condemned Man", "Victor Hugo", 3, Genre.FICTION);
+            createBook("978-1-86197-278-1", "The 48 Laws of Power", "Robert Greene", 4, Genre.NON_FICTION);
+
+            // Act - partial substring + uppercase query against mixed-case author "Plato"
+            List<Book> results = bookRepository.findByAuthorContainingIgnoreCase("LATO");
+
+            // Assert
+            assertThat(results).hasSize(2);
+            assertThat(results).extracting(Book::getAuthor)
+                    .containsExactlyInAnyOrder("Plato", "Plato");
         }
 
         @Test
@@ -141,14 +169,35 @@ class BookRepositoryIT extends AbstractIntegrationTest {
         void shouldSearchByAuthorKeyword() {
             // TODO: Use searchBooks() with an author name as keyword
             //       Verify it finds books by that author
-            fail("Not implemented yet");
+
+            // Arrange
+            createBook("978-0-14-045511-3", "The Republic", "Plato", 2, Genre.PHILOSOPHY);
+            createBook("978-0-19-282890-3", "The Last Day of a Condemned Man", "Victor Hugo", 3, Genre.FICTION);
+            createBook("978-1-86197-278-1", "The 48 Laws of Power", "Robert Greene", 4, Genre.NON_FICTION);
+
+            // Act
+            List<Book> results = bookRepository.searchBooks("Greene");
+
+            // Assert
+            assertThat(results).hasSize(1);
+            Book foundBook = results.get(0);
+            assertThat(foundBook.getTitle()).isEqualTo("The 48 Laws of Power");
         }
 
         @Test
         @DisplayName("should return empty list when no books match search")
         void shouldReturnEmpty_WhenNoMatch() {
             // TODO: Search for a keyword that matches nothing
-            fail("Not implemented yet");
+
+            // Arrange
+            createBook("978-0-14-045511-3", "The Republic", "Plato", 2, Genre.PHILOSOPHY);
+            createBook("978-0-19-282890-3", "The Last Day of a Condemned Man", "Victor Hugo", 3, Genre.FICTION);
+
+            // Act
+            List<Book> results = bookRepository.searchBooks("nonexistent-keyword");
+
+            // Assert
+            assertThat(results).isEmpty();
         }
     }
 
@@ -162,14 +211,32 @@ class BookRepositoryIT extends AbstractIntegrationTest {
             // TODO: Try to save two books with the same ISBN
             //       Verify a DataIntegrityViolationException is thrown
             //       Hint: Use assertThrows() and flush the persistence context
-            fail("Not implemented yet");
+
+            // Arrange
+            String sharedIsbn = "978-0-14-045511-3";
+            createBook(sharedIsbn, "The Republic", "Plato", 2, Genre.PHILOSOPHY);
+            Book duplicate = new Book(sharedIsbn, "Another Book", "Another Author", 1, Genre.FICTION);
+
+            // Act + Assert - saveAndFlush forces the DB constraint check
+            assertThatThrownBy(() -> bookRepository.saveAndFlush(duplicate))
+                    .isInstanceOf(DataIntegrityViolationException.class);
         }
 
         @Test
         @DisplayName("should handle deleting a book")
         void shouldDeleteBook() {
             // TODO: Save a book, delete it, verify it's gone
-            fail("Not implemented yet");
+
+            // Arrange
+            Book saved = createBook("978-1-86197-278-1", "The 48 Laws of Power", "Robert Greene", 4, Genre.NON_FICTION);
+            Long bookId = saved.getId();
+
+            // Act
+            bookRepository.deleteById(bookId);
+
+            // Assert
+            Optional<Book> found = bookRepository.findById(bookId);
+            assertThat(found).isEmpty();
         }
     }
 }
