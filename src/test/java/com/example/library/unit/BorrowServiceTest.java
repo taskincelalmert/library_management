@@ -126,7 +126,19 @@ class BorrowServiceTest {
         void shouldThrow_WhenBorrowLimitReached() {
             // TODO: Set up mocks so countActiveBorrowsByMember returns maxBooks (3 for STANDARD)
             //       Then verify BorrowLimitExceededException is thrown
-            fail("Not implemented yet");
+
+            // Arrange
+            int maxBooks = MembershipType.STANDARD.getMaxBooks();
+            when(memberRepository.findById(1L)).thenReturn(Optional.of(sampleMember));
+            when(bookRepository.findById(1L)).thenReturn(Optional.of(sampleBook));
+            when(borrowRecordRepository.countActiveBorrowsByMember(1L)).thenReturn(maxBooks);
+
+            // Act + Assert
+            assertThrows(BorrowLimitExceededException.class,
+                    () -> borrowService.borrowBook(1L, 1L));
+
+            // Verify no record was saved
+            verify(borrowRecordRepository, never()).save(any(BorrowRecord.class));
         }
 
         @Test
@@ -134,7 +146,20 @@ class BorrowServiceTest {
         void shouldThrow_WhenDuplicateBorrow() {
             // TODO: Set up mocks so existsByBookIdAndMemberIdAndStatus returns true
             //       Then verify IllegalStateException is thrown
-            fail("Not implemented yet");
+
+            // Arrange
+            when(memberRepository.findById(1L)).thenReturn(Optional.of(sampleMember));
+            when(bookRepository.findById(1L)).thenReturn(Optional.of(sampleBook));
+            when(borrowRecordRepository.countActiveBorrowsByMember(1L)).thenReturn(0);
+            when(borrowRecordRepository.existsByBookIdAndMemberIdAndStatus(1L, 1L, BorrowStatus.BORROWED))
+                    .thenReturn(true);
+
+            // Act + Assert
+            assertThrows(IllegalStateException.class,
+                    () -> borrowService.borrowBook(1L, 1L));
+
+            // Verify no record was saved
+            verify(borrowRecordRepository, never()).save(any(BorrowRecord.class));
         }
 
         @Test
@@ -142,7 +167,20 @@ class BorrowServiceTest {
         void shouldThrow_WhenMemberInactive() {
             // TODO: Set member.active = false
             //       Then verify IllegalStateException is thrown with appropriate message
-            fail("Not implemented yet");
+
+            // Arrange
+            sampleMember.setActive(false);
+            when(memberRepository.findById(1L)).thenReturn(Optional.of(sampleMember));
+
+            // Act + Assert
+            IllegalStateException ex = assertThrows(IllegalStateException.class,
+                    () -> borrowService.borrowBook(1L, 1L));
+
+            String message = ex.getMessage().toLowerCase();
+            assertTrue(message.contains("inactive"));
+
+            // Verify no record was saved
+            verify(borrowRecordRepository, never()).save(any(BorrowRecord.class));
         }
 
         @Test
@@ -150,7 +188,26 @@ class BorrowServiceTest {
         void shouldDecreaseAvailableCopies() {
             // TODO: After borrowBook(), verify that book.availableCopies decreased by 1
             //       Hint: Use ArgumentCaptor to capture the Book saved to repository
-            fail("Not implemented yet");
+
+            // Arrange
+            when(memberRepository.findById(1L)).thenReturn(Optional.of(sampleMember));
+            when(bookRepository.findById(1L)).thenReturn(Optional.of(sampleBook));
+            when(borrowRecordRepository.countActiveBorrowsByMember(1L)).thenReturn(0);
+            when(borrowRecordRepository.existsByBookIdAndMemberIdAndStatus(1L, 1L, BorrowStatus.BORROWED))
+                    .thenReturn(false);
+            when(borrowRecordRepository.save(any(BorrowRecord.class)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            // Act
+            borrowService.borrowBook(1L, 1L);
+
+            // Assert
+            ArgumentCaptor<Book> bookCaptor = ArgumentCaptor.forClass(Book.class);
+            verify(bookRepository).save(bookCaptor.capture());
+
+            Book savedBook = bookCaptor.getValue();
+            int actualAvailableCopies = savedBook.getAvailableCopies();
+            assertEquals(2, actualAvailableCopies); // started at 3, now 2
         }
     }
 
