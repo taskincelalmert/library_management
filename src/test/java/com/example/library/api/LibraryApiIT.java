@@ -236,27 +236,58 @@ class LibraryApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("should create a member and return 201")
         void shouldCreateMember() {
-            // TODO: POST a new member to /api/members
-            //       Verify 201 status and response body
-            fail("Not implemented yet");
+            // Arrange
+            Member newMember = new Member("Charlie", "charlie@test.com", MembershipType.STANDARD);
+
+            // Act
+            ResponseEntity<Member> response = restTemplate.postForEntity(
+                    baseUrl + "/members", newMember, Member.class);
+
+            // Assert
+            HttpStatusCode actualStatus = response.getStatusCode();
+            Member createdMember = response.getBody();
+
+            assertThat(actualStatus).isEqualTo(HttpStatus.CREATED);
+            assertThat(createdMember).isNotNull();
+            assertThat(createdMember.getId()).isNotNull();
+            assertThat(createdMember.getName()).isEqualTo("Charlie");
+            assertThat(createdMember.getEmail()).isEqualTo("charlie@test.com");
+            assertThat(createdMember.isActive()).isTrue();
         }
 
         @Test
         @DisplayName("should deactivate a member via DELETE")
         void shouldDeactivateMember() {
-            // TODO:
-            // 1. Create a member
-            // 2. DELETE /api/members/{id}
-            // 3. GET /api/members/{id} and verify active = false
-            fail("Not implemented yet");
+            // Arrange
+            Member member = createTestMember("Alice", "alice@test.com", MembershipType.STANDARD);
+            String memberUrl = baseUrl + "/members/" + member.getId();
+
+            // Act
+            restTemplate.delete(memberUrl);
+
+            ResponseEntity<Member> response = restTemplate.getForEntity(memberUrl, Member.class);
+
+            // Assert
+            HttpStatusCode actualStatus = response.getStatusCode();
+            Member fetchedMember = response.getBody();
+
+            assertThat(actualStatus).isEqualTo(HttpStatus.OK);
+            assertThat(fetchedMember.isActive()).isFalse();
         }
 
         @Test
         @DisplayName("should return 400 when creating member with invalid email")
         void shouldReturn400_WhenInvalidEmail() {
-            // TODO: POST a member with an invalid email
-            //       Verify 400 BAD REQUEST
-            fail("Not implemented yet");
+            // Arrange
+            Member invalidMember = new Member("Dave", "not-a-real-email", MembershipType.STANDARD);
+
+            // Act
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    baseUrl + "/members", invalidMember, Map.class);
+
+            // Assert
+            HttpStatusCode actualStatus = response.getStatusCode();
+            assertThat(actualStatus).isEqualTo(HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -267,19 +298,59 @@ class LibraryApiIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("should search books by keyword via GET /api/books/search?keyword=...")
         void shouldSearchBooks() {
-            // TODO: Create several books, search by keyword, verify results
-            fail("Not implemented yet");
+            // Arrange
+            createTestBook("978-1", "Clean Code", "Robert C. Martin");
+            createTestBook("978-2", "Clean Architecture", "Robert C. Martin");
+            createTestBook("978-3", "The Hobbit", "J.R.R. Tolkien");
+
+            String searchUrl = baseUrl + "/books/search?keyword=clean";
+
+            // Act
+            ResponseEntity<Book[]> response = restTemplate.getForEntity(searchUrl, Book[].class);
+
+            // Assert
+            HttpStatusCode actualStatus = response.getStatusCode();
+            Book[] results = response.getBody();
+
+            assertThat(actualStatus).isEqualTo(HttpStatus.OK);
+            assertThat(results).hasSize(2);
+            assertThat(results).extracting(Book::getTitle)
+                    .containsExactlyInAnyOrder("Clean Code", "Clean Architecture");
         }
 
         @Test
         @DisplayName("should get active borrows for a member")
         void shouldGetActiveBorrows() {
-            // TODO:
-            // 1. Create a member and 2 books
-            // 2. Borrow both books
-            // 3. Return one of them
-            // 4. GET /api/borrows/member/{id}/active — should return only 1
-            fail("Not implemented yet");
+            // Arrange
+            Member member = createTestMember("Alice", "alice@test.com", MembershipType.STANDARD);
+            Book book1 = createTestBook("978-1", "Book One", "Author One");
+            Book book2 = createTestBook("978-2", "Book Two", "Author Two");
+
+            BorrowRequest firstRequest = new BorrowRequest(book1.getId(), member.getId());
+            BorrowRequest secondRequest = new BorrowRequest(book2.getId(), member.getId());
+
+            // Act - borrow both books
+            ResponseEntity<Map> firstBorrow = restTemplate.postForEntity(
+                    baseUrl + "/borrows", firstRequest, Map.class);
+            restTemplate.postForEntity(
+                    baseUrl + "/borrows", secondRequest, Map.class);
+
+            // Act - return the first one
+            Number firstBorrowId = (Number) firstBorrow.getBody().get("id");
+            String returnUrl = baseUrl + "/borrows/" + firstBorrowId.longValue() + "/return";
+            restTemplate.postForEntity(returnUrl, null, Map.class);
+
+            // Act - fetch active borrows
+            String activeUrl = baseUrl + "/borrows/member/" + member.getId() + "/active";
+            ResponseEntity<Map[]> activeResponse = restTemplate.getForEntity(activeUrl, Map[].class);
+
+            // Assert
+            HttpStatusCode actualStatus = activeResponse.getStatusCode();
+            Map[] activeBorrows = activeResponse.getBody();
+
+            assertThat(actualStatus).isEqualTo(HttpStatus.OK);
+            assertThat(activeBorrows).hasSize(1);
+            assertThat(activeBorrows[0]).containsEntry("status", "BORROWED");
         }
     }
 }
