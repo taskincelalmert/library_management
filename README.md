@@ -1,5 +1,7 @@
 # Library Management System — Testing Assignment
 
+[![CI Pipeline](https://github.com/taskincelalmert/library_management/actions/workflows/ci.yml/badge.svg)](https://github.com/taskincelalmert/library_management/actions/workflows/ci.yml)
+
 A Spring Boot REST API for managing a library's book borrowing system.
 This project is designed as a **software testing course assignment** covering:
 
